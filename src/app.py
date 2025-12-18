@@ -1,24 +1,24 @@
-"""
-High School Management System API
 
-A super simple FastAPI application that allows students to view and sign up
-for extracurricular activities at Mergington High School.
-"""
-
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.params import Path
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse
 import os
-from pathlib import Path
-
+import pathlib
+import urllib.parse
 app = FastAPI(title="Mergington High School API",
               description="API for viewing and signing up for extracurricular activities")
 
-# Mount the static files directory
-current_dir = Path(__file__).parent
-app.mount("/static", StaticFiles(directory=os.path.join(Path(__file__).parent,
-          "static")), name="static")
-
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+current_dir = pathlib.Path(__file__).parent
+app.mount("/static", StaticFiles(directory=os.path.join(current_dir, "static")), name="static")
 # In-memory activity database
 activities = {
     "Chess Club": {
@@ -76,6 +76,19 @@ activities = {
         "participants": ["david@mergington.edu"]
     }
 }
+# Endpoint to remove a participant from an activity
+@app.delete("/activities/{activity_name}/participants/{email}")
+def remove_participant(activity_name: str, email: str = Path(..., description="Email address of the participant")):
+    decoded_activity = urllib.parse.unquote(activity_name)
+    decoded_email = urllib.parse.unquote(email)
+    if decoded_activity not in activities:
+        raise HTTPException(status_code=404, detail="Activity not found")
+    activity = activities[decoded_activity]
+    if decoded_email not in activity["participants"]:
+        raise HTTPException(status_code=404, detail="Participant not found")
+    activity["participants"].remove(decoded_email)
+    return {"message": f"Removed {decoded_email} from {decoded_activity}"}
+
 
 
 @app.get("/")
